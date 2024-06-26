@@ -13,16 +13,18 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 use core::ops::Deref;
+use std::println;
 
 use pki_types::{
-    CertificateDer, ServerName, SignatureVerificationAlgorithm, TrustAnchor, UnixTime,
+    CertificateDer, ServerName, SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer,
+    TrustAnchor, UnixTime,
 };
 
 use crate::crl::RevocationOptions;
 use crate::error::Error;
 use crate::subject_name::{verify_dns_names, verify_ip_address_names, NameIterator};
 use crate::verify_cert::{self, KeyUsage, VerifiedPath};
-use crate::{cert, signed_data};
+use crate::{cert, der, signed_data};
 
 /// An end-entity certificate.
 ///
@@ -55,8 +57,9 @@ use crate::{cert, signed_data};
 /// deterministic, so if these tasks are done in multiple threads, it is
 /// probably best to just call `EndEntityCert::from` multiple times (before each
 /// operation) for the same DER-encoded ASN.1 certificate bytes.
+#[derive(Debug)]
 pub struct EndEntityCert<'a> {
-    inner: cert::Cert<'a>,
+    pub inner: cert::Cert<'a>,
 }
 
 impl<'a> TryFrom<&'a CertificateDer<'a>> for EndEntityCert<'a> {
@@ -241,4 +244,24 @@ mod tests {
         assert_eq!(names.next(), Some(name));
         assert_eq!(names.next(), None);
     }
+}
+
+/// Verifies the signature of a message using the given SubjectPublicKeyInfoDer, SignatureVerificationAlgorithm, message, and signature
+/// TODO: IMPROVE DOCUMENTATION
+pub fn verify_signature_with_spki(
+    signature_alg: &dyn SignatureVerificationAlgorithm,
+    spki: &[u8],
+    msg: &[u8],
+    signature: &[u8],
+) -> Result<(), Error> {
+    let spki_value = untrusted::Input::from(spki)
+        .read_all(Error::BadDer, |input| {
+            der::expect_tag(input, der::Tag::Sequence)
+        }).unwrap();
+    signed_data::verify_signature(
+        signature_alg,
+        spki_value,
+        untrusted::Input::from(msg),
+        untrusted::Input::from(signature),
+    )
 }

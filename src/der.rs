@@ -42,14 +42,14 @@ impl<'a, T: FromDer<'a>> Iterator for DerIterator<'a, T> {
     }
 }
 
-pub(crate) trait FromDer<'a>: Sized + 'a {
+pub trait FromDer<'a>: Sized + 'a {
     /// Parse a value of type `Self` from the given DER-encoded input.
     fn from_der(reader: &mut untrusted::Reader<'a>) -> Result<Self, Error>;
 
     const TYPE_ID: DerTypeId;
 }
 
-pub(crate) fn read_all<'a, T: FromDer<'a>>(input: untrusted::Input<'a>) -> Result<T, Error> {
+pub fn read_all<'a, T: FromDer<'a>>(input: untrusted::Input<'a>) -> Result<T, Error> {
     input.read_all(Error::TrailingData(T::TYPE_ID), T::from_der)
 }
 
@@ -57,7 +57,7 @@ pub(crate) fn read_all<'a, T: FromDer<'a>>(input: untrusted::Input<'a>) -> Resul
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, Eq, PartialEq)]
 #[repr(u8)]
-pub(crate) enum Tag {
+pub enum Tag {
     Boolean = 0x01,
     Integer = 0x02,
     BitString = 0x03,
@@ -127,7 +127,7 @@ pub(crate) fn nested<'a, R>(
     nested_limited(input, tag, error, decoder, TWO_BYTE_DER_SIZE)
 }
 
-pub(crate) fn expect_tag<'a>(
+pub fn expect_tag<'a>(
     input: &mut untrusted::Reader<'a>,
     tag: Tag,
 ) -> Result<untrusted::Input<'a>, Error> {

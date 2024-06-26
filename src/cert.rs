@@ -24,13 +24,14 @@ use crate::subject_name::{GeneralName, NameIterator, WildcardDnsNameRef};
 use crate::x509::{remember_extension, set_extension_once, DistributionPointName, Extension};
 
 /// A parsed X509 certificate.
+#[derive(Debug)]
 pub struct Cert<'a> {
     pub(crate) serial: untrusted::Input<'a>,
     pub(crate) signed_data: SignedData<'a>,
     pub(crate) issuer: untrusted::Input<'a>,
     pub(crate) validity: untrusted::Input<'a>,
     pub(crate) subject: untrusted::Input<'a>,
-    pub(crate) spki: untrusted::Input<'a>,
+    pub spki: untrusted::Input<'a>,
 
     pub(crate) basic_constraints: Option<untrusted::Input<'a>>,
     // key usage (KU) extension (if any). When validating certificate revocation lists (CRLs) this

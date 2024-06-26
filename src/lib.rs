@@ -48,16 +48,16 @@ extern crate std;
 extern crate alloc;
 
 #[macro_use]
-mod der;
+pub mod der;
 
 #[cfg(feature = "aws_lc_rs")]
 mod aws_lc_rs_algs;
 mod cert;
-mod end_entity;
-mod error;
+pub mod end_entity;
+pub mod error;
 #[cfg(feature = "ring")]
 mod ring_algs;
-mod signed_data;
+pub mod signed_data;
 mod subject_name;
 mod time;
 mod trust_anchor;
@@ -76,7 +76,7 @@ pub use {
         RevocationCheckDepth, RevocationOptions, RevocationOptionsBuilder, RevocationReason,
         UnknownStatusPolicy,
     },
-    end_entity::EndEntityCert,
+    end_entity::{verify_signature_with_spki, EndEntityCert},
     error::{DerTypeId, Error},
     signed_data::alg_id,
     trust_anchor::anchor_from_trusted_cert,
