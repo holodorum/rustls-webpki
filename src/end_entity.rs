@@ -254,6 +254,7 @@ pub fn verify_signature_with_spki(
     msg: &[u8],
     signature: &[u8],
 ) -> Result<(), Error> {
+    println!("spki: {:?}", spki);
     // let spki_value = untrusted::Input::from(spki)
     //     .read_all(Error::BadDer, |input| {
     //         der::expect_tag(input, der::Tag::Sequence)
