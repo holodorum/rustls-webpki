@@ -16,7 +16,7 @@ use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
 use crate::verify_cert::Budget;
 
-use pki_types::{AlgorithmIdentifier, SignatureVerificationAlgorithm};
+use pki_types::{AlgorithmIdentifier, SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer};
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
@@ -227,10 +227,39 @@ pub(crate) fn verify_signature(
         )
         .map_err(|_| Error::InvalidSignatureForPublicKey)
 }
-
-struct SubjectPublicKeyInfo<'a> {
+#[derive(Debug)]
+pub(crate) struct SubjectPublicKeyInfo<'a> {
     algorithm_id_value: untrusted::Input<'a>,
     key_value: untrusted::Input<'a>,
+}
+
+impl<'a> SubjectPublicKeyInfo<'a> {
+    /// Get the RFC 5280-compliant [`SubjectPublicKeyInfoDer`] (SPKI) of this [`SubjectPublicKeyInfo`].
+    ///
+    /// # Arguments
+    /// * `for_verification` - If `true`, the SPKI-Der is used for verification in [`verify_signature`]. If `false`, returns a RFC 5280-compliant [`SubjectPublicKeyInfoDer`]. The difference is that the SPKI-Der for verification does not include the outermost ASN.1 SEQUENCE tag.
+    pub(crate) fn subject_public_key_info(
+        &self,
+        for_verification: bool,
+    ) -> SubjectPublicKeyInfoDer<'_> {
+        let key_value_no_unused_bits = [&[0x00], self.key_value.as_slice_less_safe()].concat();
+        // The [`SubjectPublicKeyInfo`] contains the values of the algorithm_id and the key_value.
+        // So we concatenate these values and wrap it back into a properly-encoded ASN.1 SEQUENCE
+        let concatenated = [
+            der::asn1_wrap(
+                der::Tag::Sequence,
+                self.algorithm_id_value.as_slice_less_safe(),
+            ),
+            der::asn1_wrap(der::Tag::BitString, &key_value_no_unused_bits),
+        ]
+        .concat();
+        match for_verification {
+            true => SubjectPublicKeyInfoDer::from(concatenated),
+            false => {
+                SubjectPublicKeyInfoDer::from(der::asn1_wrap(der::Tag::Sequence, &concatenated))
+            }
+        }
+    }
 }
 
 impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
