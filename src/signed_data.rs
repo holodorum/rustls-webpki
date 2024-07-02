@@ -16,7 +16,7 @@ use crate::der::{self, FromDer};
 use crate::error::{DerTypeId, Error};
 use crate::verify_cert::Budget;
 
-use pki_types::{AlgorithmIdentifier, SignatureVerificationAlgorithm};
+use pki_types::{AlgorithmIdentifier, SignatureVerificationAlgorithm, SubjectPublicKeyInfoDer};
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
@@ -228,9 +228,53 @@ pub(crate) fn verify_signature(
         .map_err(|_| Error::InvalidSignatureForPublicKey)
 }
 
-struct SubjectPublicKeyInfo<'a> {
+#[derive(Debug)]
+pub(crate) struct SubjectPublicKeyInfo<'a> {
     algorithm_id_value: untrusted::Input<'a>,
     key_value: untrusted::Input<'a>,
+}
+
+impl<'a> SubjectPublicKeyInfo<'a> {
+    pub(crate) fn from_der(spki_der: untrusted::Input<'a>) -> Result<Self, Error> {
+        spki_der.read_all(Error::TrailingData(DerTypeId::Certificate), |cert| {
+            der::nested(
+                cert,
+                der::Tag::Sequence,
+                Error::TrailingData(DerTypeId::Certificate),
+                |der| {
+                    // limited to SEQUENCEs of size 2^16 or less.
+                    let algorithm_id_value = der::expect_tag(der, der::Tag::Sequence)?;
+                    let key_value = der::expect_tag(der, der::Tag::BitString)?;
+
+                    // Construct the certificate structure
+                    let cert = SubjectPublicKeyInfo {
+                        algorithm_id_value,
+                        key_value,
+                    };
+
+                    Ok(cert)
+                },
+            )
+        })
+    }
+
+    /// Get the RFC 5280-compliant [`SubjectPublicKeyInfoDer`] (SPKI) of this [`RawPublicKeyCert`].
+    pub(crate) fn subject_public_key_info(&self) -> SubjectPublicKeyInfoDer {
+        // Create a new vector to hold the concatenated data
+        let mut concatenated = Vec::new();
+        let algorithm_wrapped = der::asn1_wrap(
+            der::Tag::Sequence,
+            self.algorithm_id_value.as_slice_less_safe(),
+        );
+        let spki_wrapped = der::asn1_wrap(der::Tag::BitString, self.key_value.as_slice_less_safe());
+        // Add algorithm and spki slices to the vector
+        concatenated.extend_from_slice(&algorithm_wrapped);
+        concatenated.extend_from_slice(&spki_wrapped);
+
+        // Wrap the concatenated data into an ASN.1 SEQUENCE
+        let wrapped = der::asn1_wrap(der::Tag::Sequence, &concatenated);
+        SubjectPublicKeyInfoDer::from(wrapped)
+    }
 }
 
 impl<'a> FromDer<'a> for SubjectPublicKeyInfo<'a> {
